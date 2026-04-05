@@ -24,3 +24,6 @@ Thumbs.db
 
 # Generated AAR outputs — built on demand, not tracked
 *.aar
+
+# Git worktrees — local development only, not tracked
+.worktrees/

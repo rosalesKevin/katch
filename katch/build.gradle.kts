@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation("dev.whyoleg.cryptography:cryptography-provider-jdk:0.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.8")
 }

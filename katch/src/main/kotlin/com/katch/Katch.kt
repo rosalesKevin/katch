@@ -2,33 +2,68 @@ package com.katch
 
 import android.content.Context
 import java.time.Instant
+import java.time.ZoneId
 
 object Katch {
+
+    sealed interface EncryptionKey {
+        object Auto : EncryptionKey
+    }
+
     private var appContext: Context? = null
     private var logBuffer: LogBuffer? = null
     private var crashHandler: CrashHandler? = null
+    private var fileWriter: FileWriter? = null
+    private var keyManager: KeyManager? = null
     private var isInitialized = false
     private var testHooks = TestHooks()
 
     fun init(context: Context) {
-        if (isInitialized) {
-            return
+        initInternal(context, null)
+    }
+
+    fun init(context: Context, encryptionKey: ByteArray) {
+        if (isInitialized) return
+        require(encryptionKey.size == 32) {
+            "Encryption key must be exactly 32 bytes (AES-256), got ${encryptionKey.size}"
         }
+        initInternal(context, Encryptor(encryptionKey))
+    }
+
+    fun init(context: Context, encryptionKey: EncryptionKey) {
+        if (isInitialized) return
+        when (encryptionKey) {
+            is EncryptionKey.Auto -> {
+                val km = testHooks.keyManagerFactory(context.applicationContext)
+                val key = km.getOrGenerateKey()
+                keyManager = km
+                initInternal(context, Encryptor(key))
+            }
+        }
+    }
+
+    private fun initInternal(context: Context, encryptor: Encryptor?) {
+        if (isInitialized) return
 
         val applicationContext = context.applicationContext
         val buffer = LogBuffer()
+        val writer = FileWriter(zoneId = testHooks.zoneIdProvider(), encryptor = encryptor)
         val handler = testHooks.crashHandlerFactory(
             applicationContext,
             buffer,
-            testHooks.currentHandlerProvider()
+            testHooks.currentHandlerProvider(),
+            writer
         )
 
         appContext = applicationContext
         logBuffer = buffer
+        fileWriter = writer
         crashHandler = handler
         testHooks.handlerInstaller(handler)
         isInitialized = true
     }
+
+    fun exportKey(): ByteArray? = keyManager?.exportKey()
 
     fun d(tag: String, message: String) = addLog("D", tag, message)
 
@@ -41,6 +76,7 @@ object Katch {
     fun testCrash() {
         val context = appContext ?: return
         val buffer = logBuffer ?: return
+        val writer = fileWriter ?: return
         val report = CrashReport(
             timestamp = testHooks.timestampProvider(),
             appVersion = testHooks.appVersionProvider(context),
@@ -51,7 +87,7 @@ object Katch {
         )
 
         runCatching {
-            testHooks.fileWriterFactory().write(context, report)
+            writer.write(context, report)
         }
     }
 
@@ -59,6 +95,8 @@ object Katch {
         appContext = null
         logBuffer = null
         crashHandler = null
+        fileWriter = null
+        keyManager = null
         isInitialized = false
         testHooks = TestHooks()
     }
@@ -71,23 +109,26 @@ object Katch {
         crashHandlerFactory: (
             Context,
             LogBuffer,
-            Thread.UncaughtExceptionHandler?
+            Thread.UncaughtExceptionHandler?,
+            FileWriter
         ) -> CrashHandler = testHooks.crashHandlerFactory,
-        fileWriterFactory: () -> FileWriter = testHooks.fileWriterFactory,
         timestampProvider: () -> Instant = testHooks.timestampProvider,
         appVersionProvider: (Context) -> String = testHooks.appVersionProvider,
         deviceProvider: () -> String = testHooks.deviceProvider,
-        osVersionProvider: () -> String = testHooks.osVersionProvider
+        osVersionProvider: () -> String = testHooks.osVersionProvider,
+        keyManagerFactory: (Context) -> KeyManager = testHooks.keyManagerFactory,
+        zoneIdProvider: () -> ZoneId = testHooks.zoneIdProvider
     ) {
         testHooks = TestHooks(
             currentHandlerProvider = currentHandlerProvider,
             handlerInstaller = handlerInstaller,
             crashHandlerFactory = crashHandlerFactory,
-            fileWriterFactory = fileWriterFactory,
             timestampProvider = timestampProvider,
             appVersionProvider = appVersionProvider,
             deviceProvider = deviceProvider,
-            osVersionProvider = osVersionProvider
+            osVersionProvider = osVersionProvider,
+            keyManagerFactory = keyManagerFactory,
+            zoneIdProvider = zoneIdProvider
         )
     }
 
@@ -106,15 +147,16 @@ object Katch {
         val crashHandlerFactory: (
             Context,
             LogBuffer,
-            Thread.UncaughtExceptionHandler?
-        ) -> CrashHandler = { context, buffer, previous ->
+            Thread.UncaughtExceptionHandler?,
+            FileWriter
+        ) -> CrashHandler = { context, buffer, previous, writer ->
             CrashHandler(
                 context = context,
                 logBuffer = buffer,
-                previousHandler = previous
+                previousHandler = previous,
+                fileWriter = writer
             )
         },
-        val fileWriterFactory: () -> FileWriter = { FileWriter() },
         val timestampProvider: () -> Instant = { Instant.now() },
         val appVersionProvider: (Context) -> String = { context ->
             CrashHandler.resolveAppVersion(context)
@@ -125,6 +167,8 @@ object Katch {
         },
         val logTimeProvider: () -> String = {
             java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
-        }
+        },
+        val keyManagerFactory: (Context) -> KeyManager = { context -> KeyManager(context) },
+        val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() }
     )
 }

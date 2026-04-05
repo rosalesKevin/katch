@@ -85,6 +85,94 @@ class FileWriterTest {
         assertEquals(null, output)
     }
 
+    @Test
+    fun `write with encryptor produces an enc file`() {
+        val rootDir = Files.createTempDirectory("katch-enc").toFile()
+        val reportsDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir("crash_logs") } returns reportsDir
+
+        val key = ByteArray(32) { it.toByte() }
+        val encryptor = Encryptor(key)
+        val fileWriter = FileWriter(zoneId = UTC, encryptor = encryptor)
+        val report = sampleReport()
+
+        val output = fileWriter.write(context, report)
+
+        assertNotNull(output)
+        assertEquals("crash_2026-04-01_14-32-05.enc", output?.name)
+    }
+
+    @Test
+    fun `encrypted file round-trips through Encryptor decrypt`() {
+        val rootDir = Files.createTempDirectory("katch-enc-rt").toFile()
+        val reportsDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir("crash_logs") } returns reportsDir
+
+        val key = ByteArray(32) { it.toByte() }
+        val encryptor = Encryptor(key)
+        val fileWriter = FileWriter(zoneId = UTC, encryptor = encryptor)
+
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        val encryptedBytes = output!!.readBytes()
+        val decrypted = encryptor.decrypt(encryptedBytes).decodeToString()
+        assertTrue(decrypted.contains("KATCH - CRASH REPORT"))
+        assertTrue(decrypted.contains("Boom"))
+    }
+
+    @Test
+    fun `encrypted file starts with format version byte`() {
+        val rootDir = Files.createTempDirectory("katch-enc-ver").toFile()
+        val reportsDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir("crash_logs") } returns reportsDir
+
+        val key = ByteArray(32) { it.toByte() }
+        val encryptor = Encryptor(key)
+        val fileWriter = FileWriter(zoneId = UTC, encryptor = encryptor)
+
+        val output = fileWriter.write(context, sampleReport())
+
+        assertEquals(0x01.toByte(), output!!.readBytes()[0])
+    }
+
+    @Test
+    fun `write with encryptor appends suffix for collision`() {
+        val rootDir = Files.createTempDirectory("katch-enc-suffix").toFile()
+        val reportsDir = File(rootDir, "crash_logs")
+        reportsDir.mkdirs()
+        File(reportsDir, "crash_2026-04-01_14-32-05.enc").writeBytes(byteArrayOf(1, 2, 3))
+
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir("crash_logs") } returns reportsDir
+
+        val key = ByteArray(32) { it.toByte() }
+        val encryptor = Encryptor(key)
+        val fileWriter = FileWriter(zoneId = UTC, encryptor = encryptor)
+
+        val output = fileWriter.write(context, sampleReport())
+
+        assertEquals("crash_2026-04-01_14-32-05_2.enc", output?.name)
+    }
+
+    @Test
+    fun `write without encryptor still produces txt file`() {
+        val rootDir = Files.createTempDirectory("katch-no-enc").toFile()
+        val reportsDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir("crash_logs") } returns reportsDir
+
+        val fileWriter = FileWriter(zoneId = UTC)
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        assertEquals("crash_2026-04-01_14-32-05.txt", output?.name)
+        assertTrue(output!!.readText().contains("KATCH - CRASH REPORT"))
+    }
+
     private fun sampleReport(): CrashReport = CrashReport(
         timestamp = Instant.parse("2026-04-01T14:32:05Z"),
         appVersion = "1.2.3 (45)",

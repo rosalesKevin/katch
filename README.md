@@ -3,7 +3,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.rosaleskevin/katch?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.rosaleskevin/katch)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An Android crash logging library written in Kotlin. When your app crashes, Katch captures the last 100 log entries and writes a structured `.txt` report to the device.
+An Android crash logging library written in Kotlin. When your app crashes, Katch captures the last 100 log entries and writes a structured report to the device — either a plaintext `.txt` file or an AES-256-GCM encrypted `.enc` file.
 
 ---
 
@@ -25,7 +25,7 @@ Add the dependency:
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.rosaleskevin:katch:0.1.0")
+    implementation("io.github.rosaleskevin:katch:0.2.0")
 }
 ```
 
@@ -97,6 +97,68 @@ java.lang.NullPointerException: ...
     at com.example.app.HomeViewModel.loadData(HomeViewModel.kt:42)
     ...
 =====================================
+```
+
+---
+
+## Encryption (optional)
+
+Crash reports contain sensitive runtime data. You can opt into AES-256-GCM encryption so reports are unreadable without the correct key.
+
+### Auto-generated key
+
+Katch generates and manages the key for you, stored via Android Keystore:
+
+```kotlin
+Katch.init(this, encryptionKey = Katch.EncryptionKey.Auto)
+```
+
+Retrieve the key at any time (e.g., to hand it to the CLI decryptor):
+
+```kotlin
+val keyBytes: ByteArray? = Katch.exportKey()
+```
+
+The key persists across app restarts. `exportKey()` returns `null` if encryption is disabled.
+
+### Developer-supplied key
+
+Pass your own 32-byte (AES-256) key:
+
+```kotlin
+Katch.init(this, encryptionKey = myKeyByteArray) // must be exactly 32 bytes
+```
+
+Passing a key of the wrong length throws `IllegalArgumentException` at startup.
+
+### Encrypted file format
+
+When encryption is enabled, reports are written as `.enc` files:
+
+```
+/sdcard/Android/data/<your.package>/files/crash_logs/crash_YYYY-MM-DD_HH-mm-ss.enc
+```
+
+The binary layout is `[1-byte version 0x01][12-byte IV][ciphertext + 16-byte GCM tag]`.
+
+### CLI decryptor
+
+Decrypt a report on your development machine using the bundled CLI tool:
+
+```bash
+java -jar katch-decryptor.jar --key <hex-encoded-key> --input crash_report.enc
+java -jar katch-decryptor.jar --key <hex-encoded-key> --input crash_report.enc --output decrypted.txt
+```
+
+- `--key` — the AES-256 key as a 64-character hex string
+- `--input` — path to the `.enc` file
+- `--output` — optional; if omitted, decrypted content is printed to stdout
+
+Build the JAR from `impl/`:
+
+```bash
+./gradlew :decryptor:jar
+# output: impl/decryptor/build/libs/decryptor.jar
 ```
 
 ---

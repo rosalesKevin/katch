@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter
 
 internal class FileWriter(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
+    private val encryptor: Encryptor? = null,
     private val writerFactory: (File) -> Writer = { file -> file.bufferedWriter() },
     private val logWarning: (String, Throwable?) -> Unit = { message, error ->
         runCatching { Log.w(LOG_TAG, message, error) }
@@ -31,8 +32,15 @@ internal class FileWriter(
             }
 
             val outputFile = nextAvailableFile(outputDirectory, report.timestamp)
-            writerFactory(outputFile).use { writer ->
-                writer.write(buildReportContent(report))
+            val content = buildReportContent(report)
+
+            if (encryptor != null) {
+                val encrypted = encryptor.encrypt(content.toByteArray(Charsets.UTF_8))
+                outputFile.writeBytes(encrypted)
+            } else {
+                writerFactory(outputFile).use { writer ->
+                    writer.write(content)
+                }
             }
 
             logSaved("Crash report saved -> ${outputFile.absolutePath}")
@@ -44,12 +52,13 @@ internal class FileWriter(
     }
 
     private fun nextAvailableFile(directory: File, timestamp: Instant): File {
+        val extension = if (encryptor != null) "enc" else "txt"
         val baseName = "crash_${FILE_NAME_FORMATTER.format(timestamp.atZone(zoneId))}"
-        var candidate = File(directory, "$baseName.txt")
+        var candidate = File(directory, "$baseName.$extension")
         var counter = 2
 
         while (candidate.exists()) {
-            candidate = File(directory, "${baseName}_$counter.txt")
+            candidate = File(directory, "${baseName}_$counter.$extension")
             counter++
         }
 
