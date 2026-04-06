@@ -4,9 +4,25 @@ import android.content.Context
 import java.time.Instant
 import java.time.ZoneId
 
+/**
+ * Katch is the single entry point for the library.
+ *
+ * Call [init] once in your [android.app.Application.onCreate]. Everything else — logging,
+ * crash capture, and report writing — happens automatically after that.
+ */
 object Katch {
 
+    /**
+     * Represents the encryption strategy for crash reports.
+     *
+     * Pass an [EncryptionKey] to [init] to enable AES-256-GCM encryption.
+     * Omit it entirely for plaintext reports.
+     */
     sealed interface EncryptionKey {
+        /**
+         * Katch generates and manages the AES-256 key for you via Android Keystore.
+         * The key persists across app restarts. Retrieve it at any time with [exportKey].
+         */
         object Auto : EncryptionKey
     }
 
@@ -18,10 +34,24 @@ object Katch {
     private var isInitialized = false
     private var testHooks = TestHooks()
 
+    /**
+     * Initializes Katch without encryption.
+     * Crash reports are written as plaintext `.txt` files.
+     *
+     * Subsequent calls after the first are ignored.
+     */
     fun init(context: Context) {
         initInternal(context, null)
     }
 
+    /**
+     * Initializes Katch with a caller-supplied AES-256 key.
+     * Crash reports are written as encrypted `.enc` files.
+     *
+     * @param encryptionKey Must be exactly 32 bytes. Throws [IllegalArgumentException] otherwise.
+     *
+     * Subsequent calls after the first are ignored.
+     */
     fun init(context: Context, encryptionKey: ByteArray) {
         if (isInitialized) return
         require(encryptionKey.size == 32) {
@@ -30,6 +60,14 @@ object Katch {
         initInternal(context, Encryptor(encryptionKey))
     }
 
+    /**
+     * Initializes Katch with a managed key strategy.
+     * Crash reports are written as encrypted `.enc` files.
+     *
+     * @param encryptionKey Use [EncryptionKey.Auto] to let Katch generate and persist the key.
+     *
+     * Subsequent calls after the first are ignored.
+     */
     fun init(context: Context, encryptionKey: EncryptionKey) {
         if (isInitialized) return
         when (encryptionKey) {
@@ -63,16 +101,33 @@ object Katch {
         isInitialized = true
     }
 
+    /**
+     * Returns the raw 32-byte AES-256 key currently in use, or `null` if encryption is disabled.
+     *
+     * Only useful when initialized with [EncryptionKey.Auto]. Pass the result to the CLI
+     * decryptor to read `.enc` crash reports on your development machine.
+     */
     fun exportKey(): ByteArray? = keyManager?.exportKey()
 
+    /** Logs a debug message. Dropped silently if called before [init]. */
     fun d(tag: String, message: String) = addLog("D", tag, message)
 
+    /** Logs an info message. Dropped silently if called before [init]. */
     fun i(tag: String, message: String) = addLog("I", tag, message)
 
+    /** Logs a warning message. Dropped silently if called before [init]. */
     fun w(tag: String, message: String) = addLog("W", tag, message)
 
+    /** Logs an error message. Dropped silently if called before [init]. */
     fun e(tag: String, message: String) = addLog("E", tag, message)
 
+    /**
+     * Writes a crash report using the current log buffer and a synthetic stack trace,
+     * without terminating the app.
+     *
+     * Useful for verifying the report format and file path during development.
+     * Has no effect if called before [init].
+     */
     fun testCrash() {
         val context = appContext ?: return
         val buffer = logBuffer ?: return
