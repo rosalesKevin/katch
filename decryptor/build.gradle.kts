@@ -14,6 +14,7 @@ application {
 dependencies {
     implementation("dev.whyoleg.cryptography:cryptography-provider-jdk:0.5.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("com.android.tools:r8:8.2.42")
     testImplementation("junit:junit:4.13.2")
 }
 
