@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Katch Sample</string>
+    <string name="title">Katch Sample App</string>
+    <string name="description">A small developer-facing sample that shows the real Katch flow: initialize once, export the key, generate a safe encrypted report, and verify the real crash path.</string>
+    <string name="usage_title">How This App Uses Katch</string>
+    <string name="usage_body">Katch is initialized in SampleApp. In a real app, you would call Katch.d(), Katch.i(), Katch.w(), and Katch.e() from your own features, then rely on testCrash() or a real uncaught crash to write the report file.</string>
+    <string name="usage_init_label">Initialization</string>
+    <string name="usage_init_snippet">Katch.init(this, Katch.EncryptionKey.Auto)</string>
+    <string name="usage_logging_label">Normal app logging</string>
+    <string name="usage_logging_snippet">Katch.d(\"Auth\", \"Token refreshed\")\nKatch.e(\"Api\", \"Request failed\")</string>
+    <string name="key_section_title">Key And Decryptor</string>
+    <string name="key_section_body">This sample uses an auto-managed encryption key. Copy the key below and pass it to the bundled decryptor when you want to inspect a generated .enc report.</string>
+    <string name="actions_title">Actions</string>
+    <string name="actions_body">Use these buttons to test the library without searching through the code first.</string>
+    <string name="generate_test_report">Generate Test Report</string>
+    <string name="crash_app">Crash App</string>
+    <string name="test_report_hint">Generate Test Report writes an encrypted sample report and keeps the app running.</string>
+    <string name="crash_hint">Crash App throws a real uncaught exception so you can verify the crash-handler path end to end.</string>
+    <string name="encryption_status_label">Encryption and decryptor</string>
+    <string name="encryption_status_ready">Auto-managed key enabled. Generated reports will be written as encrypted .enc files.</string>
+    <string name="encryption_status_unavailable">Auto-managed encryption is enabled, but the exported key is currently unavailable.</string>
+    <string name="exported_key_label">Exported key (hex)</string>
+    <string name="decrypt_command_label">Decrypt command example</string>
+    <string name="decrypt_key_placeholder">&lt;copied-key&gt;</string>
+    <string name="decrypt_command_template">java -jar .\decryptor\build\libs\decryptor.jar --key %1$s --input C:\path\to\crash.enc --output decrypted.txt</string>
+    <string name="copy_key">Copy Exported Key</string>
+    <string name="key_unavailable">Unavailable</string>
+    <string name="test_report_generated">Encrypted test report generated</string>
+    <string name="key_copied">Exported key copied</string>
+    <string name="key_copy_unavailable">No exported key is available to copy</string>
+    <string name="clipboard_unavailable">Clipboard service unavailable</string>
+</resources>

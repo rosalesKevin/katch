@@ -32,6 +32,7 @@ object Katch {
     private var fileWriter: FileWriter? = null
     private var keyManager: KeyManager? = null
     private var isInitialized = false
+    private var derivedKey: ByteArray? = null
     private var testHooks = TestHooks()
 
     /**
@@ -80,6 +81,29 @@ object Katch {
         }
     }
 
+    /**
+     * Initializes Katch with a passphrase-derived AES-256 key.
+     * Crash reports are written as encrypted `.enc` files.
+     *
+     * The passphrase is hashed with SHA-256 (UTF-8 encoded) to produce the 32-byte AES key.
+     * Call [logKey] once in a debug build to retrieve the hex key needed by the CLI decryptor.
+     *
+     * Short passphrases are not rejected — passphrase strength is the caller's responsibility.
+     *
+     * @param encryptionKey Any non-blank string. Throws [IllegalArgumentException] if blank.
+     *
+     * Subsequent calls after the first are ignored.
+     */
+    fun init(context: Context, encryptionKey: String) {
+        if (isInitialized) return
+        require(encryptionKey.isNotBlank()) { "Encryption key must not be blank" }
+        val keyBytes = java.security.MessageDigest
+            .getInstance("SHA-256")
+            .digest(encryptionKey.toByteArray(Charsets.UTF_8))
+        derivedKey = keyBytes
+        initInternal(context, Encryptor(keyBytes))
+    }
+
     private fun initInternal(context: Context, encryptor: Encryptor?) {
         if (isInitialized) return
 
@@ -107,7 +131,24 @@ object Katch {
      * Only useful when initialized with [EncryptionKey.Auto]. Pass the result to the CLI
      * decryptor to read `.enc` crash reports on your development machine.
      */
-    fun exportKey(): ByteArray? = keyManager?.exportKey()
+    fun exportKey(): ByteArray? = keyManager?.exportKey() ?: derivedKey
+
+    /**
+     * Logs the current AES-256 encryption key to Logcat as a hex string.
+     *
+     * Use this once during development to retrieve the key, then store it somewhere safe
+     * (password manager, CI secret, etc.). The key is required to decrypt `.enc` crash reports
+     * using the CLI decryptor.
+     *
+     * Only meaningful when initialized with [EncryptionKey.Auto] or a String passphrase key.
+     * No-ops silently if called before [init], if encryption is not enabled, if initialized
+     * with a developer-supplied [ByteArray] key, or if the Keystore fails to export the key.
+     */
+    fun logKey() {
+        val key = exportKey() ?: return
+        val hex = key.joinToString("") { "%02x".format(it) }
+        testHooks.logKeyPrinter("Encryption key: $hex  (keep this safe — required to decrypt crash reports)")
+    }
 
     /** Logs a debug message. Dropped silently if called before [init]. */
     fun d(tag: String, message: String) = addLog("D", tag, message)
@@ -152,6 +193,7 @@ object Katch {
         crashHandler = null
         fileWriter = null
         keyManager = null
+        derivedKey = null
         isInitialized = false
         testHooks = TestHooks()
     }
@@ -172,7 +214,8 @@ object Katch {
         deviceProvider: () -> String = testHooks.deviceProvider,
         osVersionProvider: () -> String = testHooks.osVersionProvider,
         keyManagerFactory: (Context) -> KeyManager = testHooks.keyManagerFactory,
-        zoneIdProvider: () -> ZoneId = testHooks.zoneIdProvider
+        zoneIdProvider: () -> ZoneId = testHooks.zoneIdProvider,
+        logKeyPrinter: (String) -> Unit = testHooks.logKeyPrinter
     ) {
         testHooks = TestHooks(
             currentHandlerProvider = currentHandlerProvider,
@@ -183,7 +226,8 @@ object Katch {
             deviceProvider = deviceProvider,
             osVersionProvider = osVersionProvider,
             keyManagerFactory = keyManagerFactory,
-            zoneIdProvider = zoneIdProvider
+            zoneIdProvider = zoneIdProvider,
+            logKeyPrinter = logKeyPrinter
         )
     }
 
@@ -224,6 +268,9 @@ object Katch {
             java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
         },
         val keyManagerFactory: (Context) -> KeyManager = { context -> KeyManager(context) },
-        val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() }
+        val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() },
+        val logKeyPrinter: (String) -> Unit = { message ->
+            runCatching { android.util.Log.w("Katch", message) }
+        }
     )
 }

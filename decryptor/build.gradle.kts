@@ -3,6 +3,10 @@ plugins {
     application
 }
 
+kotlin {
+    jvmToolchain(11)
+}
+
 application {
     mainClass.set("com.katch.decryptor.MainKt")
 }

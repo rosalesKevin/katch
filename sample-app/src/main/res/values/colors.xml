@@ -1,0 +1,14 @@
+<resources>
+    <color name="white">#FFFFFFFF</color>
+    <color name="sample_background">#0E1116</color>
+    <color name="sample_surface">#171C24</color>
+    <color name="sample_surface_emphasis">#1B2330</color>
+    <color name="sample_code_background">#10151C</color>
+    <color name="sample_stroke">#2A3342</color>
+    <color name="sample_accent">#76C4FF</color>
+    <color name="sample_danger">#A74444</color>
+    <color name="sample_text_primary">#F3F6FB</color>
+    <color name="sample_text_secondary">#BAC4D2</color>
+    <color name="sample_text_muted">#8391A5</color>
+    <color name="sample_button_text">#07131D</color>
+</resources>

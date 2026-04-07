@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "katch"
 include(":katch")
 include(":decryptor")
+include(":sample-app")

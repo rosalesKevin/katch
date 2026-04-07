@@ -113,13 +113,28 @@ Katch generates and manages the key for you, stored via Android Keystore:
 Katch.init(this, encryptionKey = Katch.EncryptionKey.Auto)
 ```
 
-Retrieve the key at any time (e.g., to hand it to the CLI decryptor):
+The key persists across app restarts. Call `logKey()` once in a debug build to print the key to Logcat — you'll need it to run the CLI decryptor:
 
 ```kotlin
-val keyBytes: ByteArray? = Katch.exportKey()
+if (BuildConfig.DEBUG) Katch.logKey()
+// W/Katch: Encryption key: 3a9f1c...  (keep this safe — required to decrypt crash reports)
 ```
 
-The key persists across app restarts. `exportKey()` returns `null` if encryption is disabled.
+### Passphrase key
+
+Pass any non-blank string and Katch derives the AES-256 key for you via SHA-256:
+
+```kotlin
+Katch.init(this, encryptionKey = "my-secret-passphrase")
+```
+
+The same passphrase always produces the same key — reports stay decryptable across reinstalls. Call `logKey()` once to retrieve the derived hex key for the CLI decryptor:
+
+```kotlin
+if (BuildConfig.DEBUG) Katch.logKey()
+```
+
+SHA-256 is a one-way function, so the hex key printed by `logKey()` cannot be reversed to recover the original passphrase.
 
 ### Developer-supplied key
 
@@ -174,6 +189,28 @@ if (BuildConfig.DEBUG) {
 ```
 
 This writes a real report file with the current log buffer and a synthetic stack trace, so you can verify the output before shipping.
+
+---
+
+## Included sample app
+
+This repository includes a sample Android app at `impl/sample-app/` that demonstrates a simple developer-facing integration.
+
+The sample is intentionally basic and easy to read:
+
+- `SampleApp` initializes `Katch` in `Application.onCreate()` with `Katch.EncryptionKey.Auto`
+- the screen explains where `Katch.d()`, `Katch.i()`, `Katch.w()`, and `Katch.e()` belong in a real app
+- `Copy Exported Key` gives you the key needed for the decryptor workflow
+- `Generate Test Report` writes an encrypted `.enc` report without killing the app
+- `Crash App` triggers a real uncaught exception so you can validate the crash path end to end
+
+Build it from `impl/`:
+
+```bash
+./gradlew :sample-app:assembleDebug
+```
+
+The UI uses a small dark developer-tool style, but the code path stays straightforward so the sample still reads like reference integration code.
 
 ---
 
