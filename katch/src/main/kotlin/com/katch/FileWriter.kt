@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter
 internal class FileWriter(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val encryptor: Encryptor? = null,
+    private val customOutputDirProvider: () -> File? = { null },
     private val writerFactory: (File) -> Writer = { file -> file.bufferedWriter() },
     private val logWarning: (String, Throwable?) -> Unit = { message, error ->
         runCatching { Log.w(LOG_TAG, message, error) }
@@ -21,16 +22,9 @@ internal class FileWriter(
     }
 ) {
     fun write(context: Context, report: CrashReport): File? {
-        val outputDirectory = context.getExternalFilesDir(DIRECTORY_NAME) ?: run {
-            logWarning("External storage unavailable for crash report", null)
-            return null
-        }
+        val outputDirectory = resolveOutputDirectory(context) ?: return null
 
         return try {
-            if (!outputDirectory.exists()) {
-                outputDirectory.mkdirs()
-            }
-
             val outputFile = nextAvailableFile(outputDirectory, report.timestamp)
             val content = buildReportContent(report)
 
@@ -49,6 +43,24 @@ internal class FileWriter(
             logWarning("Failed to write crash report", exception)
             null
         }
+    }
+
+    private fun resolveOutputDirectory(context: Context): File? {
+        val customDir = customOutputDirProvider()
+        if (customDir != null) {
+            if (customDir.exists() && customDir.isDirectory) return customDir
+            if (customDir.mkdirs()) return customDir
+            logWarning("Custom output directory unavailable, falling back to default", null)
+        }
+        val defaultDir = context.getExternalFilesDir(DIRECTORY_NAME) ?: run {
+            logWarning("External storage unavailable for crash report", null)
+            return null
+        }
+        if (!defaultDir.isDirectory && !defaultDir.mkdirs()) {
+            logWarning("Failed to create default output directory", null)
+            return null
+        }
+        return defaultDir
     }
 
     private fun nextAvailableFile(directory: File, timestamp: Instant): File {

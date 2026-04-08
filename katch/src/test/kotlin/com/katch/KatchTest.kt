@@ -537,4 +537,124 @@ class KatchTest {
 
         assertArrayEquals(firstKey, secondKey)
     }
+
+    @Test
+    fun `outputDir set before init directs testCrash to custom directory`() {
+        val rootDir = Files.createTempDirectory("katch-outputdir-before").toFile()
+        val customDir = File(rootDir, "custom_crashes")
+        val defaultDir = File(rootDir, "crash_logs")
+        val appContext = mockk<Context>()
+        val hostContext = mockk<Context>()
+        every { hostContext.applicationContext } returns appContext
+        every { appContext.getExternalFilesDir(any()) } returns defaultDir
+
+        Katch.configureForTests(
+            currentHandlerProvider = { null },
+            crashHandlerFactory = { context, logBuffer, previous, writer ->
+                CrashHandler(
+                    context = context,
+                    logBuffer = logBuffer,
+                    previousHandler = previous,
+                    fileWriter = writer,
+                    timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+                    appVersionProvider = { "1.0.0 (1)" },
+                    deviceProvider = { "Pixel 8" },
+                    osVersionProvider = { "Android 15 (API 35)" }
+                )
+            },
+            timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+            appVersionProvider = { "1.0.0 (1)" },
+            deviceProvider = { "Pixel 8" },
+            osVersionProvider = { "Android 15 (API 35)" },
+            zoneIdProvider = { UTC }
+        )
+
+        Katch.outputDir(customDir)
+        Katch.init(hostContext)
+        Katch.testCrash()
+
+        val report = File(customDir, "crash_2026-04-08_10-00-00.txt")
+        assertTrue("Expected report in custom dir", report.exists())
+        assertFalse("Expected no report in default dir", File(defaultDir, "crash_2026-04-08_10-00-00.txt").exists())
+    }
+
+    @Test
+    fun `outputDir set after init directs testCrash to custom directory`() {
+        val rootDir = Files.createTempDirectory("katch-outputdir-after").toFile()
+        val customDir = File(rootDir, "custom_crashes")
+        val defaultDir = File(rootDir, "crash_logs")
+        val appContext = mockk<Context>()
+        val hostContext = mockk<Context>()
+        every { hostContext.applicationContext } returns appContext
+        every { appContext.getExternalFilesDir(any()) } returns defaultDir
+
+        Katch.configureForTests(
+            currentHandlerProvider = { null },
+            crashHandlerFactory = { context, logBuffer, previous, writer ->
+                CrashHandler(
+                    context = context,
+                    logBuffer = logBuffer,
+                    previousHandler = previous,
+                    fileWriter = writer,
+                    timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+                    appVersionProvider = { "1.0.0 (1)" },
+                    deviceProvider = { "Pixel 8" },
+                    osVersionProvider = { "Android 15 (API 35)" }
+                )
+            },
+            timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+            appVersionProvider = { "1.0.0 (1)" },
+            deviceProvider = { "Pixel 8" },
+            osVersionProvider = { "Android 15 (API 35)" },
+            zoneIdProvider = { UTC }
+        )
+
+        Katch.init(hostContext)
+        Katch.outputDir(customDir)
+        Katch.testCrash()
+
+        val report = File(customDir, "crash_2026-04-08_10-00-00.txt")
+        assertTrue("Expected report in custom dir", report.exists())
+    }
+
+    @Test
+    fun `resetForTests clears customOutputDir`() {
+        val rootDir = Files.createTempDirectory("katch-reset-outputdir").toFile()
+        val customDir = File(rootDir, "custom_crashes")
+        val defaultDir = File(rootDir, "crash_logs")
+        val appContext = mockk<Context>()
+        val hostContext = mockk<Context>()
+        every { hostContext.applicationContext } returns appContext
+        every { appContext.getExternalFilesDir(any()) } returns defaultDir
+
+        Katch.outputDir(customDir)
+        Katch.resetForTests()
+
+        Katch.configureForTests(
+            currentHandlerProvider = { null },
+            crashHandlerFactory = { context, logBuffer, previous, writer ->
+                CrashHandler(
+                    context = context,
+                    logBuffer = logBuffer,
+                    previousHandler = previous,
+                    fileWriter = writer,
+                    timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+                    appVersionProvider = { "1.0.0 (1)" },
+                    deviceProvider = { "Pixel 8" },
+                    osVersionProvider = { "Android 15 (API 35)" }
+                )
+            },
+            timestampProvider = { Instant.parse("2026-04-08T10:00:00Z") },
+            appVersionProvider = { "1.0.0 (1)" },
+            deviceProvider = { "Pixel 8" },
+            osVersionProvider = { "Android 15 (API 35)" },
+            zoneIdProvider = { UTC }
+        )
+
+        Katch.init(hostContext)
+        Katch.testCrash()
+
+        assertFalse("Custom dir should not be used after reset", File(customDir, "crash_2026-04-08_10-00-00.txt").exists())
+        assertTrue("Default dir should be used after reset", File(defaultDir, "crash_2026-04-08_10-00-00.txt").exists())
+    }
 }

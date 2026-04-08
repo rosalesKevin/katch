@@ -1,5 +1,7 @@
 # Katch
 
+![Katch banner](Katch-banner.png)
+
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.rosaleskevin/katch?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.rosaleskevin/katch)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -25,7 +27,7 @@ Add the dependency:
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.rosaleskevin:katch:0.2.0")
+    implementation("io.github.rosaleskevin:katch:1.0.0")
 }
 ```
 
@@ -98,6 +100,17 @@ java.lang.NullPointerException: ...
     ...
 =====================================
 ```
+
+### Custom output directory
+
+By default Katch writes to `getExternalFilesDir("crash_logs")`. To save reports somewhere else, call `outputDir()` with any `File` — before or after `init()`:
+
+```kotlin
+Katch.outputDir(File(getExternalFilesDir(null), "my_crashes"))
+Katch.init(this)
+```
+
+If the directory does not exist Katch will attempt to create it. If creation fails it falls back to the default location silently.
 
 ---
 
@@ -198,9 +211,10 @@ This repository includes a sample Android app at `impl/sample-app/` that demonst
 
 The sample is intentionally basic and easy to read:
 
-- `SampleApp` initializes `Katch` in `Application.onCreate()` with `Katch.EncryptionKey.Auto`
+- `SampleApp` initializes `Katch` in `Application.onCreate()` with a string passphrase, which Katch hashes with SHA-256 to derive the real AES key
+- the screen makes it clear that `Katch.EncryptionKey.Auto` is still the alternative if you want Katch-managed keys
 - the screen explains where `Katch.d()`, `Katch.i()`, `Katch.w()`, and `Katch.e()` belong in a real app
-- `Copy Exported Key` gives you the key needed for the decryptor workflow
+- `Copy Exported Key` gives you the derived AES key needed for the decryptor workflow
 - `Generate Test Report` writes an encrypted `.enc` report without killing the app
 - `Crash App` triggers a real uncaught exception so you can validate the crash path end to end
 

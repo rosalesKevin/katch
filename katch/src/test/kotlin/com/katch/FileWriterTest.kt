@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -171,6 +172,107 @@ class FileWriterTest {
         assertNotNull(output)
         assertEquals("crash_2026-04-01_14-32-05.txt", output?.name)
         assertTrue(output!!.readText().contains("KATCH - CRASH REPORT"))
+    }
+
+    @Test
+    fun `write uses custom dir when it already exists`() {
+        val rootDir = Files.createTempDirectory("katch-custom-exists").toFile()
+        val customDir = File(rootDir, "my_custom_crashes").also { it.mkdirs() }
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns File(rootDir, "crash_logs")
+
+        val fileWriter = FileWriter(zoneId = UTC, customOutputDirProvider = { customDir })
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        assertEquals(customDir.absolutePath, output!!.parentFile.absolutePath)
+    }
+
+    @Test
+    fun `write creates custom dir when it does not exist yet`() {
+        val rootDir = Files.createTempDirectory("katch-custom-create").toFile()
+        val customDir = File(rootDir, "new_dir_not_yet_created")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns File(rootDir, "crash_logs")
+
+        val fileWriter = FileWriter(zoneId = UTC, customOutputDirProvider = { customDir })
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        assertTrue(customDir.exists())
+        assertEquals(customDir.absolutePath, output!!.parentFile.absolutePath)
+    }
+
+    @Test
+    fun `write falls back to default when custom dir mkdirs fails`() {
+        val rootDir = Files.createTempDirectory("katch-custom-fallback").toFile()
+        // Place a file at the intended directory path so mkdirs() returns false
+        val blockedPath = File(rootDir, "blocked").also { it.writeText("i am a file") }
+        val defaultDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns defaultDir
+
+        val warnings = mutableListOf<String>()
+        val fileWriter = FileWriter(
+            zoneId = UTC,
+            customOutputDirProvider = { blockedPath },
+            logWarning = { msg, _ -> warnings.add(msg) }
+        )
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        assertEquals(defaultDir.absolutePath, output!!.parentFile.absolutePath)
+        assertTrue("Expected a fallback warning", warnings.any { it.contains("Custom output directory unavailable") })
+    }
+
+    @Test
+    fun `write uses default dir when no custom dir is set`() {
+        val rootDir = Files.createTempDirectory("katch-no-custom").toFile()
+        val defaultDir = File(rootDir, "crash_logs")
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns defaultDir
+
+        val fileWriter = FileWriter(zoneId = UTC) // no customOutputDirProvider
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNotNull(output)
+        assertEquals(defaultDir.absolutePath, output!!.parentFile.absolutePath)
+    }
+
+    @Test
+    fun `write returns null when default dir cannot be created`() {
+        val rootDir = Files.createTempDirectory("katch-default-mkdirs-fail").toFile()
+        // Place a file at the default dir path so mkdirs() on it fails
+        val blockedDefaultDir = File(rootDir, "crash_logs").also { it.writeText("i am a file") }
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns blockedDefaultDir
+
+        val warnings = mutableListOf<String>()
+        val fileWriter = FileWriter(
+            zoneId = UTC,
+            logWarning = { msg, _ -> warnings.add(msg) }
+        )
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNull(output)
+        assertTrue("Expected a warning about default dir creation failure",
+            warnings.any { it.contains("Failed to create default output directory") })
+    }
+
+    @Test
+    fun `write returns null when custom dir fails and external storage is also unavailable`() {
+        val rootDir = Files.createTempDirectory("katch-double-fail").toFile()
+        val blockedPath = File(rootDir, "blocked").also { it.writeText("i am a file") }
+        val context = mockk<Context>()
+        every { context.getExternalFilesDir(any()) } returns null
+
+        val fileWriter = FileWriter(
+            zoneId = UTC,
+            customOutputDirProvider = { blockedPath }
+        )
+        val output = fileWriter.write(context, sampleReport())
+
+        assertNull(output)
     }
 
     private fun sampleReport(): CrashReport = CrashReport(

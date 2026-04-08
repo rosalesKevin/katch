@@ -1,6 +1,7 @@
 package com.katch
 
 import android.content.Context
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 
@@ -33,6 +34,7 @@ object Katch {
     private var keyManager: KeyManager? = null
     private var isInitialized = false
     private var derivedKey: ByteArray? = null
+    @Volatile private var customOutputDir: File? = null
     private var testHooks = TestHooks()
 
     /**
@@ -104,12 +106,27 @@ object Katch {
         initInternal(context, Encryptor(keyBytes))
     }
 
+    /**
+     * Sets the directory where crash reports will be saved.
+     *
+     * Can be called before or after [init]. If the directory does not exist, Katch will
+     * attempt to create it. If creation fails, the default external files directory is used.
+     * Calling again replaces the previous value.
+     */
+    fun outputDir(dir: File) {
+        customOutputDir = dir
+    }
+
     private fun initInternal(context: Context, encryptor: Encryptor?) {
         if (isInitialized) return
 
         val applicationContext = context.applicationContext
         val buffer = LogBuffer()
-        val writer = FileWriter(zoneId = testHooks.zoneIdProvider(), encryptor = encryptor)
+        val writer = FileWriter(
+            zoneId = testHooks.zoneIdProvider(),
+            encryptor = encryptor,
+            customOutputDirProvider = { customOutputDir }
+        )
         val handler = testHooks.crashHandlerFactory(
             applicationContext,
             buffer,
@@ -194,6 +211,7 @@ object Katch {
         fileWriter = null
         keyManager = null
         derivedKey = null
+        customOutputDir = null
         isInitialized = false
         testHooks = TestHooks()
     }
