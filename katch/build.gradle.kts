@@ -33,8 +33,10 @@ android {
 
 dependencies {
     implementation("dev.whyoleg.cryptography:cryptography-provider-jdk:0.5.0")
+    compileOnly("com.jakewharton.timber:timber:5.0.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.8")
+    testImplementation("com.jakewharton.timber:timber:5.0.1")
 }
 
 // ── Publish metadata ──────────────────────────────────────────────────────────

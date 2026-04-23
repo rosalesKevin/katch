@@ -2,6 +2,8 @@ package com.katch.sample
 
 import android.app.Application
 import com.katch.Katch
+import com.katch.KatchTimberTree
+import timber.log.Timber
 
 class SampleApp : Application() {
     override fun onCreate() {
@@ -13,5 +15,8 @@ class SampleApp : Application() {
         // getExternalFilesDir("crash_logs"), call outputDir() before or after init():
         //   Katch.outputDir(File(getExternalFilesDir(null), "my_crashes"))
         Katch.init(this, "katch-sample-passphrase")
+
+        // Plant after Katch.init so all Timber logs are captured in the crash report buffer.
+        Timber.plant(KatchTimberTree())
     }
 }
